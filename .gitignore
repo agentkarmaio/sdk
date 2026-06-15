@@ -1,0 +1,22 @@
+# dependencies
+/node_modules
+
+# build output — regenerate with `bun run build` (still shipped to npm via package.json "files")
+/dist
+
+# npm pack artifacts
+*.tgz
+
+# test coverage
+/coverage
+
+# typescript incremental
+*.tsbuildinfo
+
+# env / secrets
+.env
+.env*.local
+*.pem
+
+# os
+.DS_Store
