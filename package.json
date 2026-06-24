@@ -1,6 +1,6 @@
 {
   "name": "@agentkarma/sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "TypeScript SDK for AgentKarma — the reputation layer for autonomous on-chain agents.",
   "license": "MIT",
   "author": "Kerem Noras <kerem@noras.tech>",
@@ -20,7 +20,18 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./tools": {
+      "types": "./dist/tools.d.ts",
+      "import": "./dist/tools.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp.d.ts",
+      "import": "./dist/mcp.js"
     }
+  },
+  "bin": {
+    "agentkarma-mcp": "./dist/mcp-cli.js"
   },
   "files": [
     "dist",
@@ -32,11 +43,15 @@
   "engines": {
     "node": ">=18"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && chmod +x dist/mcp-cli.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "bun test",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "agentkarma",
@@ -47,9 +62,20 @@
     "x402",
     "solana",
     "celo",
-    "preflight"
+    "preflight",
+    "mcp",
+    "model-context-protocol"
   ],
+  "peerDependencies": {
+    "@modelcontextprotocol/sdk": ">=1.0.0 <2"
+  },
+  "peerDependenciesMeta": {
+    "@modelcontextprotocol/sdk": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/node": "^25.5.2",
     "bun-types": "^1.3.13",
     "typescript": "^6.0.2"

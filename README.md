@@ -8,6 +8,7 @@ Add a `check_trust_before_execute` step to any agent flow in under 10 minutes.
 - Zero runtime dependencies
 - Typed responses for the public REST API
 - Local trust-policy evaluator with explainable allow/deny decisions
+- MCP-ready: a framework-agnostic tool catalog (`@agentkarma/sdk/tools`) + a turnkey MCP server (`@agentkarma/sdk/mcp`, `npx agentkarma-mcp`)
 - Never proxies, signs, or executes transactions on your behalf
 
 ## Install
@@ -200,6 +201,55 @@ try {
 | `getAgentHistory(wallet, { limit?, offset? })` | `GET /api/agent/{wallet}/history` |
 | `getFeedbackSummary(wallet)` | `GET /api/feedback?agent={wallet}` |
 | `submitFeedback(input)` | `POST /api/feedback` |
+
+## MCP server & tool catalog
+
+Expose AgentKarma's read surface to any MCP client (Claude Desktop, Cursor, Continue, …).
+
+**Turnkey server** — run over stdio, no code:
+
+```sh
+npx agentkarma-mcp
+# point at a different host:
+AGENTKARMA_BASE_URL=https://staging.agentkarma.io npx agentkarma-mcp
+```
+
+**Embed the server** in your own process:
+
+```ts
+import { createAgentKarmaMcpServer } from '@agentkarma/sdk/mcp';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+
+const server = createAgentKarmaMcpServer();          // backed by the public API
+await server.connect(new StdioServerTransport());
+```
+
+`@agentkarma/sdk/mcp` requires the optional peer dependency `@modelcontextprotocol/sdk`
+(install it only if you use the server). The core client and the tool catalog stay
+dependency-free.
+
+**Framework-agnostic catalog** — the same nine read tools as plain JSON-Schema
+descriptors you can mount on any host, or run directly:
+
+```ts
+import { createAgentKarmaClient } from '@agentkarma/sdk';
+import { agentKarmaTools, runAgentKarmaTool } from '@agentkarma/sdk/tools';
+
+const ak = createAgentKarmaClient();
+agentKarmaTools.map((t) => t.name);
+// get_karma, get_celo_agent, search_agents, get_agent_history,
+// get_feedback_summary, get_succession, get_bond, get_surety, check_trust
+
+const result = await runAgentKarmaTool(ak, 'check_trust', {
+  wallet: 'AgentWallet…',
+  min_score: 60,
+  require_receipt_backed: true,
+});
+```
+
+Every tool is read-only, idempotent, and requires no keys. The one write
+(`submitFeedback`) is intentionally excluded, so an MCP server built from this
+catalog needs no signer.
 
 ## Non-routing guarantee
 
