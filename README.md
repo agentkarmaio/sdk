@@ -206,12 +206,22 @@ try {
 
 Expose AgentKarma's read surface to any MCP client (Claude Desktop, Cursor, Continue, …).
 
-**Turnkey server** — run over stdio, no code:
+**Turnkey server** — run over stdio. The `agentkarma-mcp` bin ships inside
+`@agentkarma/sdk` and uses the optional `@modelcontextprotocol/sdk` peer, so the
+zero-install one-liner names both packages:
 
 ```sh
-npx agentkarma-mcp
+npx -p @agentkarma/sdk -p @modelcontextprotocol/sdk agentkarma-mcp
 # point at a different host:
-AGENTKARMA_BASE_URL=https://staging.agentkarma.io npx agentkarma-mcp
+AGENTKARMA_BASE_URL=https://staging.agentkarma.io \
+  npx -p @agentkarma/sdk -p @modelcontextprotocol/sdk agentkarma-mcp
+```
+
+Or install once, then the bin resolves locally:
+
+```sh
+npm i @agentkarma/sdk @modelcontextprotocol/sdk
+npx agentkarma-mcp
 ```
 
 **Embed the server** in your own process:
