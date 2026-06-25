@@ -28,7 +28,8 @@
     "./mcp": {
       "types": "./dist/mcp.d.ts",
       "import": "./dist/mcp.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "bin": {
     "agentkarma-mcp": "./dist/mcp-cli.js"
