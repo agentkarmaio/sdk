@@ -32,6 +32,36 @@ console.log(snap.provider?.confidenceBadge); // 'receipt-backed' | 'behavior-inf
 console.log(snap.autonomy.label);            // 'agent-like' | 'mixed' | 'human-like' | null
 ```
 
+## Multi-chain lookups
+
+AgentKarma indexes four chains: `solana`, `celo`, `stellar`, `arc`. `getKarma` defaults to `'solana'` for back-compat — pass `chain` for anything else so the SDK applies the right address validation (the Solana base58 shape would reject a Stellar `G…` or EVM `0x…` address). The SDK never auto-detects a chain from the address.
+
+```ts
+import { createAgentKarmaClient } from '@agentkarma/sdk';
+
+const ak = createAgentKarmaClient();
+
+// Stellar — 56-char StrKey address, starts with G
+const stellar = await ak.getKarma(
+  'GCC4T6DGC4RGV5PBILZIHWXORDSN366EE5Y3QXVDPIKCZT5W2T6OZ567',
+  { chain: 'stellar' },
+);
+console.log(stellar.provider?.score);
+
+// Celo / Arc — lowercase 0x address
+const celo = await ak.getKarma('0xcfc0…5b96', { chain: 'celo' });
+```
+
+Address formats per chain:
+
+| Chain | Address format |
+|---|---|
+| `solana` | base58, 32–44 chars |
+| `celo`, `arc` | EVM `0x` + 40 hex chars (lowercase) |
+| `stellar` | StrKey, 56 chars, starts with `G` |
+
+The succession, bond, and surety methods take `chain` as an explicit first argument (see the method table below). The history and feedback endpoints are Solana-only today.
+
 ## Quick start — Celo ERC-8004 lookup
 
 ```ts
@@ -158,6 +188,7 @@ Each method accepts per-call options:
 ```ts
 await ak.getKarma(wallet, {
   face: 'provider',                  // 'provider' | 'consumer' | 'both' (default)
+  chain: 'stellar',                  // 'solana' (default) | 'celo' | 'stellar' | 'arc'
   signal: abortController.signal,    // request-level abort
   timeout: 3000,                     // overrides client default for this call
   headers: { 'X-Request-Id': 'abc' },
@@ -193,14 +224,17 @@ try {
 
 | Method | Endpoint |
 |---|---|
-| `getKarma(wallet, { face?, … })` | `GET /api/v2/score/{wallet}?face={face}` |
+| `getKarma(wallet, { face?, chain?, … })` | `GET /api/v2/score/{wallet}?face={face}` — all chains, `chain` defaults `'solana'` |
 | `getProviderKarma(wallet)` | shortcut for provider face only |
 | `getConsumerKarma(wallet)` | shortcut for consumer face only |
 | `getCeloAgent(agentId)` | `GET /api/v2/celo/{agentId}` |
 | `searchAgents(query, { limit? })` | `GET /api/search?q={query}` |
-| `getAgentHistory(wallet, { limit?, offset? })` | `GET /api/agent/{wallet}/history` |
-| `getFeedbackSummary(wallet)` | `GET /api/feedback?agent={wallet}` |
-| `submitFeedback(input)` | `POST /api/feedback` |
+| `getAgentHistory(wallet, { limit?, offset? })` | `GET /api/agent/{wallet}/history` — Solana-only |
+| `getFeedbackSummary(wallet)` | `GET /api/feedback?agent={wallet}` — Solana-only |
+| `getSuccessionStatus(chain, wallet)` | `GET /api/v2/succession/{chain}/{wallet}` — all chains |
+| `getBondStatus(chain, wallet)` | `GET /api/v2/bond/{chain}/{wallet}` — all chains |
+| `getSuretyKarma(chain, wallet)` | `GET /api/v2/bond/{chain}/{wallet}` (`.surety`) — all chains |
+| `submitFeedback(input)` | `POST /api/feedback` — Solana-only |
 
 ## MCP server & tool catalog
 
