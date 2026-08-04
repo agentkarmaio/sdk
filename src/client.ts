@@ -36,7 +36,8 @@ import type {
   SuretyView,
 } from './types.js';
 
-const SDK_VERSION = '0.1.0';
+/** Kept in lockstep with package.json `version` — enforced by tests/version.test.ts. */
+export const SDK_VERSION = '0.2.3';
 const DEFAULT_BASE_URL = 'https://agentkarma.io';
 const DEFAULT_TIMEOUT_MS = 10_000;
 
@@ -247,11 +248,19 @@ export interface AgentKarmaClient {
     opts?: { face?: KarmaFace | 'both'; chain?: Chain } & RequestOptions,
   ): Promise<KarmaSnapshot>;
 
-  /** Shorthand for `getKarma(wallet, { face: 'provider' })`. Returns just the provider face. */
-  getProviderKarma(wallet: string, opts?: RequestOptions): Promise<KarmaFaceData>;
+  /** Shorthand for `getKarma(wallet, { face: 'provider' })`. Returns just the provider face.
+   *  Accepts `chain` like `getKarma` — required for non-Solana wallets. */
+  getProviderKarma(
+    wallet: string,
+    opts?: { chain?: Chain } & RequestOptions,
+  ): Promise<KarmaFaceData>;
 
-  /** Shorthand for `getKarma(wallet, { face: 'consumer' })`. Returns just the consumer face. */
-  getConsumerKarma(wallet: string, opts?: RequestOptions): Promise<KarmaFaceData | null>;
+  /** Shorthand for `getKarma(wallet, { face: 'consumer' })`. Returns just the consumer face.
+   *  Accepts `chain` like `getKarma` — required for non-Solana wallets. */
+  getConsumerKarma(
+    wallet: string,
+    opts?: { chain?: Chain } & RequestOptions,
+  ): Promise<KarmaFaceData | null>;
 
   /** GET /api/v2/celo/{agentId} — ERC-8004 IdentityRegistry + ReputationRegistry snapshot. */
   getCeloAgent(agentId: number, opts?: RequestOptions): Promise<CeloAgentSnapshot>;

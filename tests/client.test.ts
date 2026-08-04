@@ -207,6 +207,22 @@ describe('getProviderKarma / getConsumerKarma', () => {
     const c = await ak.getConsumerKarma(VALID_WALLET);
     expect(c).toBeNull();
   });
+
+  it('accepts chain in shorthand opts (Stellar G-address passes validation)', async () => {
+    const STELLAR_WALLET = 'GA6OBKNSBCY2I4PQLGNNQQXRXWXRUBRLSKLM7YP7QBBSRW7LCZFLHODV';
+    let capturedUrl = '';
+    const ak = createAgentKarmaClient({
+      fetch: async (url) => {
+        capturedUrl = String(url);
+        return jsonResponse(fullSnapshot({ face: 'provider', consumer: undefined }));
+      },
+    });
+    // Without { chain: 'stellar' } this G-address fails the Solana base58 gate —
+    // the opts type must admit `chain` so the shorthand is usable off-Solana.
+    const p = await ak.getProviderKarma(STELLAR_WALLET, { chain: 'stellar' });
+    expect(p.score).toBe(78);
+    expect(capturedUrl).toContain(STELLAR_WALLET);
+  });
 });
 
 describe('getCeloAgent', () => {
