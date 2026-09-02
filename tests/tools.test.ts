@@ -253,3 +253,20 @@ describe('agentKarma tool catalog', () => {
     expect(getAgentKarmaTool('nope')).toBeUndefined();
   });
 });
+
+describe('check_trust fails closed on unparseable policy values (finding 5)', () => {
+  it('rejects a non-numeric min_score instead of silently dropping the gate', async () => {
+    const { client } = fakeClient();
+    await expect(
+      runAgentKarmaTool(client, 'check_trust', { wallet: SOLANA_WALLET, min_score: '60%' }),
+    ).rejects.toBeInstanceOf(AgentKarmaValidationError);
+  });
+
+  it('rejects an unrecognized boolean instead of coercing it', async () => {
+    const { client } = fakeClient();
+    await expect(
+      runAgentKarmaTool(client, 'check_trust', { wallet: SOLANA_WALLET, require_receipt_backed: 'no' }),
+    ).rejects.toBeInstanceOf(AgentKarmaValidationError);
+  });
+});
+

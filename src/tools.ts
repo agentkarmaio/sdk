@@ -117,19 +117,26 @@ function asString(value: unknown): string {
   return typeof value === 'string' ? value : String(value ?? '');
 }
 
-/** Coerce an MCP arg to a number, tolerating JSON-string numbers. `undefined` passes through. */
-function asOptionalNumber(value: unknown): number | undefined {
+/**
+ * Coerce an MCP arg to a number, tolerating JSON-string numbers. `undefined`
+ * passes through; a present-but-unparseable value throws so a policy bound is
+ * never silently dropped (fail closed — these gate trust decisions).
+ */
+function asOptionalNumber(field: string, value: unknown): number | undefined {
   if (value === undefined || value === null || value === '') return undefined;
   const n = typeof value === 'number' ? value : Number(value);
-  return Number.isNaN(n) ? undefined : n;
+  if (typeof value === 'boolean' || !Number.isFinite(n)) {
+    throw new AgentKarmaValidationError(`${field} must be a finite number`);
+  }
+  return n;
 }
 
-function asOptionalBoolean(value: unknown): boolean | undefined {
+function asOptionalBoolean(field: string, value: unknown): boolean | undefined {
   if (value === undefined || value === null || value === '') return undefined;
   if (typeof value === 'boolean') return value;
   if (value === 'true' || value === '1') return true;
   if (value === 'false' || value === '0') return false;
-  return Boolean(value);
+  throw new AgentKarmaValidationError(`${field} must be a boolean`);
 }
 
 function asChain(value: unknown): Chain | undefined {
@@ -163,7 +170,7 @@ function resolveOptionalChain(value: unknown): Chain | undefined {
 
 /** Clamp an optional limit to the tool's advertised [1, max] bound. */
 function clampLimit(value: unknown, max: number): number | undefined {
-  const n = asOptionalNumber(value);
+  const n = asOptionalNumber('limit', value);
   if (n === undefined) return undefined;
   return Math.min(Math.max(1, Math.trunc(n)), max);
 }
@@ -254,7 +261,7 @@ export const agentKarmaTools: AgentKarmaToolDescriptor[] = [
     handler: (client, input) =>
       client.getAgentHistory(asString(input.wallet), {
         limit: clampLimit(input.limit, 200),
-        offset: asOptionalNumber(input.offset),
+        offset: asOptionalNumber('offset', input.offset),
       }),
   },
   {
@@ -375,15 +382,15 @@ export const agentKarmaTools: AgentKarmaToolDescriptor[] = [
       const policy: TrustPolicy = {};
       const face = input.face;
       if (face === 'provider' || face === 'consumer') policy.face = face;
-      const minScore = asOptionalNumber(input.min_score);
+      const minScore = asOptionalNumber('min_score', input.min_score);
       if (minScore !== undefined) policy.minScore = minScore;
-      const requireReceipt = asOptionalBoolean(input.require_receipt_backed);
+      const requireReceipt = asOptionalBoolean('require_receipt_backed', input.require_receipt_backed);
       if (requireReceipt !== undefined) policy.requireReceiptBacked = requireReceipt;
-      const minTx = asOptionalNumber(input.min_tx_count);
+      const minTx = asOptionalNumber('min_tx_count', input.min_tx_count);
       if (minTx !== undefined) policy.minTxCount = minTx;
-      const minAutonomy = asOptionalNumber(input.min_autonomy_score);
+      const minAutonomy = asOptionalNumber('min_autonomy_score', input.min_autonomy_score);
       if (minAutonomy !== undefined) policy.minAutonomyScore = minAutonomy;
-      const requireLive = asOptionalBoolean(input.require_live_succession);
+      const requireLive = asOptionalBoolean('require_live_succession', input.require_live_succession);
       if (requireLive !== undefined) policy.requireLiveSuccession = requireLive;
 
       const snapshot = await client.getKarma(wallet, { chain, face: 'both' });

@@ -83,6 +83,7 @@ function buildSignal(
   // Compose caller's signal + timeout signal. AbortSignal.any() is available
   // in modern Node/Bun/browsers; fall back to a manual relay otherwise.
   let composed: AbortSignal;
+  let detachRelay: () => void = () => {};
   if (opts?.signal) {
     if (typeof AbortSignal !== 'undefined' && typeof (AbortSignal as unknown as { any?: unknown }).any === 'function') {
       composed = (AbortSignal as unknown as { any: (signals: AbortSignal[]) => AbortSignal }).any([
@@ -92,8 +93,15 @@ function buildSignal(
     } else {
       const relayController = new AbortController();
       const relay = () => relayController.abort();
-      opts.signal.addEventListener('abort', relay, { once: true });
-      timeoutController.signal.addEventListener('abort', relay, { once: true });
+      if (opts.signal.aborted) {
+        // Listeners never fire retroactively; mirror an already-aborted signal now.
+        relayController.abort();
+      } else {
+        const caller = opts.signal;
+        caller.addEventListener('abort', relay, { once: true });
+        timeoutController.signal.addEventListener('abort', relay, { once: true });
+        detachRelay = () => caller.removeEventListener('abort', relay);
+      }
       composed = relayController.signal;
     }
   } else {
@@ -104,8 +112,21 @@ function buildSignal(
     signal: composed,
     timeoutSignal: timeoutController.signal,
     timeoutMs,
-    cleanup: () => clearTimeout(timeoutId),
+    cleanup: () => {
+      clearTimeout(timeoutId);
+      detachRelay();
+    },
   };
+}
+
+/** Reject `promise` as soon as `signal` aborts, so a stalled body read still honors the deadline. */
+function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(signal.reason ?? new Error('aborted'));
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason ?? new Error('aborted'));
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
+  });
 }
 
 async function readBodySafe(res: Response): Promise<unknown> {
@@ -169,69 +190,74 @@ async function request<T>(
   const url = `${cfg.baseUrl}${path}`;
   const { signal, timeoutSignal, timeoutMs, cleanup } = buildSignal(cfg.timeout, opts);
 
-  let res: Response;
-  try {
-    // Call standalone: `cfg.fetchImpl(...)` would bind `this` to cfg, which
-    // Cloudflare Workers' native fetch rejects with "Illegal invocation".
-    const { fetchImpl } = cfg;
-    res = await fetchImpl(url, {
-      ...init,
-      signal,
-      headers: { ...cfg.headers, ...(init.headers ?? {}), ...(opts?.headers ?? {}) },
-    });
-  } catch (err) {
-    cleanup();
+  const classify = (err: unknown): never => {
     // The timeout's own controller having fired is the most reliable signal
     // that we exceeded the deadline — works regardless of which runtime's
     // AbortError shape was thrown by fetch (Bun vs Node vs browser).
-    if (timeoutSignal.aborted) {
-      throw new AgentKarmaTimeoutError(timeoutMs);
-    }
-    if (opts?.signal?.aborted) {
-      throw new AgentKarmaAbortError(err);
-    }
-    throw new AgentKarmaNetworkError(
-      err instanceof Error ? err.message : String(err),
-      err,
-    );
-  }
-  cleanup();
+    if (timeoutSignal.aborted) throw new AgentKarmaTimeoutError(timeoutMs);
+    if (opts?.signal?.aborted) throw new AgentKarmaAbortError(err);
+    throw new AgentKarmaNetworkError(err instanceof Error ? err.message : String(err), err);
+  };
 
-  if (res.status === 429) {
-    const retryAfter = Number(res.headers.get('retry-after') ?? '0');
-    const body = await readBodySafe(res);
-    throw new AgentKarmaRateLimitError(
-      'AgentKarma rate limit exceeded',
-      { response: body, retryAfter: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined },
-    );
-  }
-
-  if (res.status === 404) {
-    const body = await readBodySafe(res);
-    const msg = typeof body === 'object' && body && 'error' in body
-      ? String((body as { error: unknown }).error)
-      : `Not found at ${path}`;
-    throw new AgentKarmaNotFoundError(msg, { response: body });
-  }
-
-  if (!res.ok) {
-    const body = await readBodySafe(res);
-    const msg = typeof body === 'object' && body && 'error' in body
-      ? String((body as { error: unknown }).error)
-      : `AgentKarma server returned ${res.status}`;
-    throw new AgentKarmaServerError(msg, { status: res.status, response: body });
-  }
-
-  let parsed: unknown;
   try {
-    parsed = await res.json();
-  } catch (err) {
-    throw new AgentKarmaMalformedResponseError(
-      'Response body is not valid JSON',
-      { cause: err },
-    );
+    // An already-aborted signal must never reach the network.
+    if (signal.aborted) classify(signal.reason);
+    let res: Response;
+    try {
+      // Call standalone: `cfg.fetchImpl(...)` would bind `this` to cfg, which
+      // Cloudflare Workers' native fetch rejects with "Illegal invocation".
+      const { fetchImpl } = cfg;
+      res = await fetchImpl(url, {
+        ...init,
+        signal,
+        headers: { ...cfg.headers, ...(init.headers ?? {}), ...(opts?.headers ?? {}) },
+      });
+    } catch (err) {
+      return classify(err);
+    }
+
+    // Body reads race the same signal: headers arriving does not end the deadline.
+    const readBody = () => untilAborted(readBodySafe(res), signal).catch(classify);
+
+    if (res.status === 429) {
+      const retryAfter = Number(res.headers.get('retry-after') ?? '0');
+      const body = await readBody();
+      throw new AgentKarmaRateLimitError(
+        'AgentKarma rate limit exceeded',
+        { response: body, retryAfter: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined },
+      );
+    }
+
+    if (res.status === 404) {
+      const body = await readBody();
+      const msg = typeof body === 'object' && body && 'error' in body
+        ? String((body as { error: unknown }).error)
+        : `Not found at ${path}`;
+      throw new AgentKarmaNotFoundError(msg, { response: body });
+    }
+
+    if (!res.ok) {
+      const body = await readBody();
+      const msg = typeof body === 'object' && body && 'error' in body
+        ? String((body as { error: unknown }).error)
+        : `AgentKarma server returned ${res.status}`;
+      throw new AgentKarmaServerError(msg, { status: res.status, response: body });
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = await untilAborted(res.json(), signal);
+    } catch (err) {
+      if (signal.aborted) classify(err);
+      throw new AgentKarmaMalformedResponseError(
+        'Response body is not valid JSON',
+        { cause: err },
+      );
+    }
+    return parsed as T;
+  } finally {
+    cleanup();
   }
-  return parsed as T;
 }
 
 // ─── Public client ────────────────────────────────────────────────────────────
@@ -318,10 +344,7 @@ export interface AgentKarmaClient {
 export function createAgentKarmaClient(config?: ClientConfig): AgentKarmaClient {
   const cfg = normalizeConfig(config);
 
-  return {
-    baseUrl: cfg.baseUrl,
-
-    async getKarma(wallet, opts = {}) {
+  const getKarma: AgentKarmaClient['getKarma'] = async (wallet, opts = {}) => {
       // Chain-aware: default 'solana' (back-compat). assertWalletForChain applies
       // the strict base58 shape only for Solana; other chains pass through to the
       // server. We do NOT auto-detect an EVM chain from the address.
@@ -336,10 +359,14 @@ export function createAgentKarmaClient(config?: ClientConfig): AgentKarmaClient 
       const snap = await request<KarmaSnapshot>(cfg, path, { method: 'GET' }, opts);
       validateKarmaSnapshot(snap);
       return snap;
-    },
+  };
+
+  return {
+    baseUrl: cfg.baseUrl,
+    getKarma,
 
     async getProviderKarma(wallet, opts) {
-      const snap = await this.getKarma(wallet, { ...opts, face: 'provider' });
+      const snap = await getKarma(wallet, { ...opts, face: 'provider' });
       if (!snap.provider) {
         throw new AgentKarmaMalformedResponseError(
           'Server omitted provider face from response',
@@ -350,7 +377,7 @@ export function createAgentKarmaClient(config?: ClientConfig): AgentKarmaClient 
     },
 
     async getConsumerKarma(wallet, opts) {
-      const snap = await this.getKarma(wallet, { ...opts, face: 'consumer' });
+      const snap = await getKarma(wallet, { ...opts, face: 'consumer' });
       // Consumer face is allowed to be absent (the wallet may have no consumer
       // signal). Surface null rather than throw — caller decides.
       return snap.consumer ?? null;
@@ -468,10 +495,23 @@ export function createAgentKarmaClient(config?: ClientConfig): AgentKarmaClient 
       assertChain(chain);
       assertWalletForChain(wallet, chain);
       const path = `/api/v2/bond/${chain}/${encodeURIComponent(wallet)}`;
-      const res = await request<BondResponse>(cfg, path, { method: 'GET' }, opts);
+      const raw = await request<unknown>(cfg, path, { method: 'GET' }, opts);
+      const surety = (raw as Partial<BondResponse> | null)?.surety;
       // Surety is allowed to be absent (the wallet may never have underwritten).
       // Surface null rather than throw — caller decides.
-      return res?.surety ?? null;
+      if (surety === undefined || surety === null) return null;
+      if (
+        typeof surety !== 'object' ||
+        typeof surety.score !== 'number' ||
+        typeof surety.label !== 'string' ||
+        typeof surety.totalCount !== 'number'
+      ) {
+        throw new AgentKarmaMalformedResponseError(
+          'Bond response has a malformed surety block',
+          { response: raw },
+        );
+      }
+      return surety;
     },
 
     async submitFeedback(input, opts) {

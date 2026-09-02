@@ -380,3 +380,63 @@ describe('fetch receiver (Cloudflare Workers compatibility)', () => {
     expect(snap.address).toBe(VALID_WALLET);
   });
 });
+
+describe('timeout covers the body read (finding 2)', () => {
+  it('rejects with AgentKarmaTimeoutError when headers arrive but the body stalls', async () => {
+    const ak = createAgentKarmaClient({
+      timeout: 50,
+      // 200 + JSON content-type, then a body that never completes.
+      fetch: async () =>
+        new Response(new ReadableStream({ start() {} }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+    });
+    await expect(ak.getKarma(VALID_WALLET)).rejects.toBeInstanceOf(AgentKarmaTimeoutError);
+  });
+});
+
+describe('methods survive destructuring (finding 3)', () => {
+  it('getProviderKarma / getConsumerKarma do not depend on `this`', async () => {
+    const { getProviderKarma, getConsumerKarma } = createAgentKarmaClient({
+      fetch: async () => jsonResponse(fullSnapshot()),
+    });
+    expect((await getProviderKarma(VALID_WALLET)).score).toBe(78);
+    expect(await getConsumerKarma(VALID_WALLET)).not.toBeNull();
+  });
+});
+
+describe('AbortSignal.any fallback (finding 4)', () => {
+  const anyImpl = (AbortSignal as unknown as { any?: unknown }).any;
+  const withoutAny = async (fn: () => Promise<void>) => {
+    (AbortSignal as unknown as { any?: unknown }).any = undefined;
+    try { await fn(); } finally { (AbortSignal as unknown as { any?: unknown }).any = anyImpl; }
+  };
+
+  it('honors an already-aborted caller signal without hitting the network', () =>
+    withoutAny(async () => {
+      let fetched = false;
+      const ak = createAgentKarmaClient({
+        fetch: async () => { fetched = true; return jsonResponse(fullSnapshot()); },
+      });
+      const ac = new AbortController();
+      ac.abort();
+      await expect(ak.getKarma(VALID_WALLET, { signal: ac.signal })).rejects.toBeInstanceOf(AgentKarmaAbortError);
+      expect(fetched).toBe(false);
+    }));
+
+  it('removes its listener from a long-lived caller signal after success', () =>
+    withoutAny(async () => {
+      const ak = createAgentKarmaClient({ fetch: async () => jsonResponse(fullSnapshot()) });
+      const ac = new AbortController();
+      let added = 0, removed = 0;
+      const origAdd = ac.signal.addEventListener.bind(ac.signal);
+      const origRemove = ac.signal.removeEventListener.bind(ac.signal);
+      ac.signal.addEventListener = ((...a: Parameters<typeof origAdd>) => { added++; return origAdd(...a); }) as typeof ac.signal.addEventListener;
+      ac.signal.removeEventListener = ((...a: Parameters<typeof origRemove>) => { removed++; return origRemove(...a); }) as typeof ac.signal.removeEventListener;
+      for (let i = 0; i < 3; i++) await ak.getKarma(VALID_WALLET, { signal: ac.signal });
+      expect(added).toBe(3);
+      expect(removed).toBe(3);
+    }));
+});
+

@@ -217,3 +217,20 @@ describe('getSuretyKarma', () => {
     );
   });
 });
+
+describe('getSuretyKarma shape validation (finding 6)', () => {
+  it('returns null when surety is absent', async () => {
+    const ak = createAgentKarmaClient({ fetch: async () => jsonResponse(bondResponse({ surety: null })) });
+    expect(await ak.getSuretyKarma('arc', EVM_WALLET)).toBeNull();
+  });
+
+  it('throws AgentKarmaMalformedResponseError when surety is present but malformed', async () => {
+    const ak = createAgentKarmaClient({
+      fetch: async () => jsonResponse({ ...bondResponse(), surety: 'oops' }),
+    });
+    await expect(ak.getSuretyKarma('arc', EVM_WALLET)).rejects.toBeInstanceOf(
+      AgentKarmaMalformedResponseError,
+    );
+  });
+});
+
