@@ -52,6 +52,13 @@ export type {
   KarmaIdentity,
   KarmaFaceData,
   AutonomyData,
+  // Enrichment blocks
+  RegistryBlock,
+  RegistryAgentView,
+  DeclaredBlock,
+  FeedbackBlock,
+  FeedbackRecordView,
+  DiscoveryBlock,
   // Dead Man's Switch + Bonding + Surety
   SuccessionStatus,
   SuccessionHeir,

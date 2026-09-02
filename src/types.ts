@@ -128,6 +128,105 @@ export interface KarmaSnapshot {
    * folded into Provider/Consumer karma.
    */
   surety?: SuretyView;
+  /**
+   * Additive enrichment (server ≥ 2026-09): ERC-8004 registry agents this
+   * address controls on the resolved chain. Omitted when nothing is owned or
+   * the read failed. AK links to declared endpoints, never relays them.
+   */
+  registry?: RegistryBlock;
+  /** AK's live v0.2 declared-metadata rubric for the primary registry agent. */
+  declared?: DeclaredBlock;
+  /** ERC-8004 feedback aggregate + newest records, from AK's registry mirror. */
+  feedback?: FeedbackBlock;
+  /** x402 payee discoveries recorded for this address (read-only, never probed here). */
+  discovery?: DiscoveryBlock;
+  /** `wallets.rank_score` — what orders Explore (declared evidence ×0.7). null without a row. */
+  rankScore?: number | null;
+  /** Deterministic, factual sentences derived from the data above. No LLM. ≤ 10. */
+  explain?: string[];
+}
+
+// ─── Enrichment blocks (additive on /api/v2/score/{wallet}, MCP get_karma, A2A) ─
+
+export interface RegistryAgentView {
+  agentId: number;
+  name: string | null;
+  description: string | null;
+  /** inline | fetched | empty | unreachable | invalid | pending */
+  registrationStatus: string;
+  /** Mirror column; may predate the current rubric version. */
+  metadataScore: number;
+  feedbackCount: number;
+  /** Declared services (≤ 10, sanitized strings). Links, not relays. */
+  services: Array<{ name: string; endpoint: string }>;
+  explorer: { agentkarma: string; eightthousandfourscan: string | null };
+}
+
+export interface RegistryBlock {
+  /** Uncapped count of agents owned/controlled on this chain. */
+  total: number;
+  /** ≤ 10, metadata score descending. */
+  agents: RegistryAgentView[];
+}
+
+export interface DeclaredBlock {
+  /** 'agentkarma_metadata' */
+  scheme: string;
+  /** Rubric version, e.g. 'v0.2'. */
+  version: string;
+  agentId: number;
+  /** 0–100, live recompute (pure function of the registration JSON + agentURI). */
+  score: number;
+  dimensions: Array<{ key: string; label: string; passed: boolean; points: number; max: number }>;
+  notes: string[];
+}
+
+export interface FeedbackRecordView {
+  agentId: number;
+  client: string;
+  /** raw / 10^decimals — the registry's own scale, not normalized to stars. */
+  value: number;
+  tag1: string;
+  tag2: string;
+  revoked: boolean;
+  indexedAt: string;
+}
+
+export interface FeedbackBlock {
+  source: 'registry-mirror';
+  /** Authoritative total from the mirror's per-agent aggregates. */
+  count: number;
+  /** Count-weighted mean of non-revoked values; null when count is 0. */
+  average: number | null;
+  /** Distinct rater addresses within the sampled window. */
+  distinctClients: number;
+  /** Rows in the newest-first window (≤ 1000) the sample was computed over. */
+  sampled: number;
+  /** ISO timestamp of the newest sampled record. */
+  asOf: string | null;
+  /** ≤ 10 newest records. */
+  records: FeedbackRecordView[];
+  /** AK's own disclosed metadata attestations among the window (≤ 5). */
+  validators: Array<{
+    agentId: number;
+    client: string;
+    value: number;
+    version: string;
+    revoked: boolean;
+    indexedAt: string;
+  }>;
+}
+
+export interface DiscoveryBlock {
+  /** ≤ 10. `verified: false` = declared as payTo by ANOTHER agent (not attributed to this wallet). */
+  endpoints: Array<{
+    endpoint: string | null;
+    asset: string | null;
+    network: string | null;
+    verified: boolean;
+    sourceAgentId: number | null;
+    lastSeenAt: string;
+  }>;
 }
 
 // ─── /api/v2/celo/{agentId} ───────────────────────────────────────────────────

@@ -76,6 +76,31 @@ describe('createAgentKarmaClient', () => {
 });
 
 describe('getKarma', () => {
+  it('passes through the additive enrichment blocks untouched (typed, not validated)', async () => {
+    const enriched = fullSnapshot({
+      registry: {
+        total: 1,
+        agents: [{
+          agentId: 1870, name: 'Toppa', description: null, registrationStatus: 'fetched',
+          metadataScore: 90, feedbackCount: 581,
+          services: [{ name: 'send-airtime', endpoint: 'https://api.toppa.cc/send-airtime' }],
+          explorer: { agentkarma: 'https://agentkarma.io/agent/0x558e?agentId=1870&chain=celo', eightthousandfourscan: 'https://8004scan.io/agent/1870' },
+        }],
+      },
+      declared: { scheme: 'agentkarma_metadata', version: 'v0.2', agentId: 1870, score: 90, dimensions: [], notes: [] },
+      feedback: { source: 'registry-mirror', count: 581, average: 96.7, distinctClients: 3, sampled: 581, asOf: null, records: [], validators: [] },
+      rankScore: 70,
+      explain: ['Provider score 100 (Excellent), declared; no payment receipts on record, so the score comes from declared metadata only.'],
+    });
+    const ak = createAgentKarmaClient({ fetch: async () => jsonResponse(enriched) });
+    const res = await ak.getKarma(VALID_WALLET);
+    expect(res.registry?.agents[0]?.agentId).toBe(1870);
+    expect(res.declared?.score).toBe(90);
+    expect(res.feedback?.count).toBe(581);
+    expect(res.rankScore).toBe(70);
+    expect(res.explain).toHaveLength(1);
+  });
+
   it('returns a parsed snapshot on 200', async () => {
     const snap = fullSnapshot();
     const ak = createAgentKarmaClient({
