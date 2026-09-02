@@ -233,4 +233,3 @@ describe('getSuretyKarma shape validation (finding 6)', () => {
     );
   });
 });
-

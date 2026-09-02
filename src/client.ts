@@ -38,7 +38,7 @@ import type {
 } from './types.js';
 
 /** Kept in lockstep with package.json `version` — enforced by tests/version.test.ts. */
-export const SDK_VERSION = '0.2.5';
+export const SDK_VERSION = '0.2.6';
 const DEFAULT_BASE_URL = 'https://agentkarma.io';
 const DEFAULT_TIMEOUT_MS = 10_000;
 
@@ -355,7 +355,9 @@ export function createAgentKarmaClient(config?: ClientConfig): AgentKarmaClient 
       if (face !== 'both' && face !== 'provider' && face !== 'consumer') {
         throw new AgentKarmaValidationError(`face must be 'provider' | 'consumer' | 'both'`);
       }
-      const path = `/api/v2/score/${encodeURIComponent(wallet)}?face=${face}`;
+      // Always pin the chain on the wire: an EVM address can exist on both celo
+      // and arc, and the server must not guess.
+      const path = `/api/v2/score/${encodeURIComponent(wallet)}?face=${face}&chain=${chain}`;
       const snap = await request<KarmaSnapshot>(cfg, path, { method: 'GET' }, opts);
       validateKarmaSnapshot(snap);
       return snap;

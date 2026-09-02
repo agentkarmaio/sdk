@@ -34,7 +34,7 @@ console.log(snap.autonomy.label);            // 'agent-like' | 'mixed' | 'human-
 
 ## Multi-chain lookups
 
-AgentKarma indexes four chains: `solana`, `celo`, `stellar`, `arc`. `getKarma` defaults to `'solana'` for back-compat — pass `chain` for anything else so the SDK applies the right address validation (the Solana base58 shape would reject a Stellar `G…` or EVM `0x…` address). The SDK never auto-detects a chain from the address.
+AgentKarma indexes four chains: `solana`, `celo`, `stellar`, `arc`. `getKarma` defaults to `'solana'` for back-compat — pass `chain` for anything else so the SDK applies the right address validation (the Solana base58 shape would reject a Stellar `G…` or EVM `0x…` address). The SDK never auto-detects a chain from the address. The chain is sent on the wire (`?chain=`) so the server never guesses either: an EVM address can hold rows on both `celo` and `arc`.
 
 ```ts
 import { createAgentKarmaClient } from '@agentkarma/sdk';

@@ -440,3 +440,25 @@ describe('AbortSignal.any fallback (finding 4)', () => {
     }));
 });
 
+describe('getKarma sends the chain pin on the wire', () => {
+  const capture = () => {
+    let url = '';
+    const ak = createAgentKarmaClient({
+      fetch: async (input) => { url = String(input); return jsonResponse(fullSnapshot()); },
+    });
+    return { ak, url: () => url };
+  };
+
+  it('appends chain=<pin> for a non-Solana wallet', async () => {
+    const { ak, url } = capture();
+    await ak.getKarma('0xCfc0A11C75519FAf85B7872E27733CFaa4295b96', { chain: 'arc' });
+    expect(url()).toContain('chain=arc');
+  });
+
+  it('appends chain=solana for the default chain too, so the server never guesses', async () => {
+    const { ak, url } = capture();
+    await ak.getKarma(VALID_WALLET);
+    expect(url()).toContain('chain=solana');
+  });
+});
+
