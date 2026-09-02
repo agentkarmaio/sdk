@@ -205,6 +205,7 @@ Every error is an `AgentKarmaError` subclass:
 | `AgentKarmaNotFoundError` | Server returned 404 |
 | `AgentKarmaRateLimitError` | Server returned 429 (with `retryAfter` in seconds) |
 | `AgentKarmaTimeoutError` | Request deadline exceeded |
+| `AgentKarmaAbortError` | Caller's own `signal` aborted the request |
 | `AgentKarmaNetworkError` | `fetch()` threw before getting a response |
 | `AgentKarmaMalformedResponseError` | 2xx response body didn't match expected shape |
 | `AgentKarmaServerError` | Other non-2xx response |

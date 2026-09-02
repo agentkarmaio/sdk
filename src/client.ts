@@ -6,6 +6,7 @@
  */
 
 import {
+  AgentKarmaAbortError,
   AgentKarmaError,
   AgentKarmaMalformedResponseError,
   AgentKarmaNetworkError,
@@ -186,8 +187,8 @@ async function request<T>(
     if (timeoutSignal.aborted) {
       throw new AgentKarmaTimeoutError(timeoutMs);
     }
-    if (err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
-      throw new AgentKarmaTimeoutError(timeoutMs);
+    if (opts?.signal?.aborted) {
+      throw new AgentKarmaAbortError(err);
     }
     throw new AgentKarmaNetworkError(
       err instanceof Error ? err.message : String(err),

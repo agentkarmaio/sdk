@@ -27,6 +27,7 @@ export {
   AgentKarmaNotFoundError,
   AgentKarmaRateLimitError,
   AgentKarmaTimeoutError,
+  AgentKarmaAbortError,
   AgentKarmaNetworkError,
   AgentKarmaMalformedResponseError,
   AgentKarmaServerError,

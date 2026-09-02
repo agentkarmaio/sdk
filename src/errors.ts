@@ -62,6 +62,14 @@ export class AgentKarmaTimeoutError extends AgentKarmaError {
   }
 }
 
+/** The caller's own AbortSignal fired before a response arrived. Distinct from a deadline hit. */
+export class AgentKarmaAbortError extends AgentKarmaError {
+  constructor(cause?: unknown) {
+    super('Request aborted by caller', { cause });
+    this.name = 'AgentKarmaAbortError';
+  }
+}
+
 /** fetch() threw before getting a response — DNS failure, connection refused, offline, etc. */
 export class AgentKarmaNetworkError extends AgentKarmaError {
   constructor(message: string, cause?: unknown) {

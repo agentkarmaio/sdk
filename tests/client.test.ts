@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import {
+  AgentKarmaAbortError,
   AgentKarmaError,
   AgentKarmaMalformedResponseError,
   AgentKarmaNetworkError,
@@ -185,6 +186,23 @@ describe('getKarma', () => {
         }),
     });
     await expect(ak.getKarma(VALID_WALLET)).rejects.toBeInstanceOf(AgentKarmaTimeoutError);
+  });
+
+  it('reports a caller-initiated abort as AgentKarmaAbortError, not a timeout', async () => {
+    const ak = createAgentKarmaClient({
+      timeout: 5000,
+      fetch: (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          const sig = init?.signal as AbortSignal | undefined;
+          if (sig?.aborted) reject(sig.reason);
+          sig?.addEventListener('abort', () => reject(sig.reason));
+        }),
+    });
+    const ac = new AbortController();
+    setTimeout(() => ac.abort(), 5);
+    const err = await ak.getKarma(VALID_WALLET, { signal: ac.signal }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AgentKarmaAbortError);
+    expect(err).not.toBeInstanceOf(AgentKarmaTimeoutError);
   });
 });
 
