@@ -344,3 +344,21 @@ describe('submitFeedback', () => {
     expect(capturedInit?.headers).toMatchObject({ 'Content-Type': 'application/json' });
   });
 });
+
+describe('fetch receiver (Cloudflare Workers compatibility)', () => {
+  // Workers' native fetch rejects any receiver other than globalThis/undefined
+  // with "Illegal invocation". Node and Bun do not check, so this stub is the
+  // only way to catch the regression on a laptop.
+  function receiverCheckingFetch(this: unknown, _url: string | URL | Request): Promise<Response> {
+    if (this !== undefined && this !== globalThis) {
+      throw new TypeError('Illegal invocation: function called with incorrect this reference');
+    }
+    return Promise.resolve(jsonResponse(fullSnapshot()));
+  }
+
+  it('never invokes fetch with the internal config as receiver', async () => {
+    const client = createAgentKarmaClient({ fetch: receiverCheckingFetch });
+    const snap = await client.getKarma(VALID_WALLET);
+    expect(snap.address).toBe(VALID_WALLET);
+  });
+});

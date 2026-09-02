@@ -37,7 +37,7 @@ import type {
 } from './types.js';
 
 /** Kept in lockstep with package.json `version` — enforced by tests/version.test.ts. */
-export const SDK_VERSION = '0.2.3';
+export const SDK_VERSION = '0.2.4';
 const DEFAULT_BASE_URL = 'https://agentkarma.io';
 const DEFAULT_TIMEOUT_MS = 10_000;
 
@@ -170,7 +170,10 @@ async function request<T>(
 
   let res: Response;
   try {
-    res = await cfg.fetchImpl(url, {
+    // Call standalone: `cfg.fetchImpl(...)` would bind `this` to cfg, which
+    // Cloudflare Workers' native fetch rejects with "Illegal invocation".
+    const { fetchImpl } = cfg;
+    res = await fetchImpl(url, {
       ...init,
       signal,
       headers: { ...cfg.headers, ...(init.headers ?? {}), ...(opts?.headers ?? {}) },
