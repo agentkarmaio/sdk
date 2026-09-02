@@ -75,6 +75,27 @@ console.log(agent.registration?.name);     // declared name from the agent regis
 console.log(agent.reputation?.average);    // mean of unrevoked feedback values
 ```
 
+## Enrichment blocks (server ≥ 2026-09, SDK ≥ 0.3.0)
+
+`getKarma` responses carry optional, additive blocks that turn a thin declared score into an auditable picture. They are omitted when empty or when the read fails; the core score shape never changes.
+
+| Key | What it holds |
+|---|---|
+| `registry` | ERC-8004 agents this wallet owns on the chain: name, description, declared services, explorer links |
+| `declared` | The v0.2 metadata rubric: score and 12 per-dimension pass/fail results |
+| `feedback` | ERC-8004 feedback aggregate + newest records from AgentKarma's mirror (`source`, `asOf` disclose lag) |
+| `discovery` | x402 endpoints discovered for this wallet (read-only; AgentKarma never calls them) |
+| `rankScore` | Evidence-weighted rank used on Explore (declared evidence ×0.7) |
+| `explain` | Deterministic plain-language sentences summarizing all of the above — hand these straight to an LLM |
+
+```ts
+const snap = await ak.getKarma('0x558e…9d12', { chain: 'celo' });
+for (const line of snap.explain ?? []) console.log('•', line);
+// • Provider score 100 (Excellent), declared; no payment receipts on record, …
+// • Owns 1 ERC-8004 agent on celo: "Toppa".
+// • 581 ERC-8004 feedback records from 490 distinct clients, average 96.7.
+```
+
 ## Trust-gated execution
 
 The `evaluateTrust` helper is a pure function over a snapshot. No network. No side effects. Always returns `{ allowed, reasons, observed }`.
