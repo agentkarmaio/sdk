@@ -530,6 +530,19 @@ export interface IndependenceBlock {
   reciprocalPayerCount: number;
   /** Share (0-1) of this wallet's outbound payments that carry an identified payee. */
   coverage: number;
+  /** How many payment records the reading was computed over — the denominator
+   *  behind `payerCount`. Weigh a 2-payment verdict differently to a 200-payment one. */
+  observedPayments: number;
   /** True when the figures come from a recent window rather than the wallet's whole history. */
   windowed: boolean;
+  /**
+   * Which Stellar network the figures came from, when AgentKarma read them live
+   * from Horizon rather than from indexed rows. Present only for that path.
+   *
+   * Check it. A `chain: 'stellar'` request does not guarantee mainnet: an
+   * account absent from mainnet is resolved on testnet instead, and acting on
+   * testnet figures as though they were real money is the failure this whole
+   * block exists to prevent.
+   */
+  network?: 'pubnet' | 'testnet';
 }

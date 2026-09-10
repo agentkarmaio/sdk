@@ -85,7 +85,7 @@ console.log(agent.reputation?.average);    // mean of unrevoked feedback values
 | `declared` | The v0.2 metadata rubric: score and 12 per-dimension pass/fail results |
 | `feedback` | ERC-8004 feedback aggregate + newest records from AgentKarma's mirror (`source`, `asOf` disclose lag) |
 | `discovery` | x402 endpoints discovered for this wallet (read-only; AgentKarma never calls them) |
-| `independence` | How much inbound value came from addresses this wallet also pays: `reciprocalShare`, `independentShare`, a `verdict`, and `coverage` |
+| `independence` | How much inbound value came from addresses this wallet also pays: `reciprocalShare`, `independentShare`, a `verdict`, `coverage`, and `observedPayments` |
 | `rankScore` | Evidence-weighted rank used on Explore (declared evidence ×0.7) |
 | `explain` | Deterministic plain-language sentences summarizing all of the above — hand these straight to an LLM |
 
@@ -93,7 +93,12 @@ console.log(agent.reputation?.average);    // mean of unrevoked feedback values
 `circular` or `insufficient-data`. The last one means AgentKarma cannot see enough payee
 data to decide — it is **not** a pass, and must not be read as one. `coverage` tells you
 why: it is the share of the wallet's outbound payments that carry an identified payee.
-`windowed: true` means the figures come from a recent sample rather than all history.
+`windowed: true` means the figures come from a recent sample rather than all history, and
+`observedPayments` tells you how many payments the verdict rests on.
+
+On Stellar the block also carries `network`. A `chain: 'stellar'` request does not guarantee
+mainnet — an account absent from mainnet is resolved on testnet — so check it before treating
+the amounts as real money.
 
 ```ts
 const snap = await ak.getKarma('0x558e…9d12', { chain: 'celo' });
