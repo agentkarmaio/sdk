@@ -59,6 +59,7 @@ export type {
   FeedbackBlock,
   FeedbackRecordView,
   DiscoveryBlock,
+  IndependenceBlock,
   // Dead Man's Switch + Bonding + Surety
   SuccessionStatus,
   SuccessionHeir,

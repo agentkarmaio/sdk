@@ -38,7 +38,7 @@ import type {
 } from './types.js';
 
 /** Kept in lockstep with package.json `version` — enforced by tests/version.test.ts. */
-export const SDK_VERSION = '0.4.0';
+export const SDK_VERSION = '0.4.1';
 const DEFAULT_BASE_URL = 'https://agentkarma.io';
 const DEFAULT_TIMEOUT_MS = 10_000;
 
