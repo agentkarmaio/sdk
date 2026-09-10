@@ -140,6 +140,12 @@ export interface KarmaSnapshot {
   feedback?: FeedbackBlock;
   /** x402 payee discoveries recorded for this address (read-only, never probed here). */
   discovery?: DiscoveryBlock;
+  /**
+   * Additive revenue-independence read: how much inbound value came from
+   * addresses this wallet also pays. Reported ALONGSIDE karma, never folded
+   * into it. Omitted when the wallet has no observed payment flows.
+   */
+  independence?: IndependenceBlock;
   /** `wallets.rank_score` — what orders Explore (declared evidence ×0.7). null without a row. */
   rankScore?: number | null;
   /** Deterministic, factual sentences derived from the data above. No LLM. ≤ 10. */
@@ -502,4 +508,28 @@ export interface ClientConfig {
    * identify your application in AgentKarma's request logs.
    */
   userAgent?: string;
+}
+
+/**
+ * Revenue independence — the "is this revenue real, or is the operator paying
+ * itself?" read. Additive; it never changes Provider or Consumer karma.
+ *
+ * `verdict: 'insufficient-data'` means AK cannot see enough payee data to
+ * decide. It does NOT mean independent, and MUST NOT be treated as a pass by an
+ * underwriting caller. Check `coverage` when you need to know why.
+ */
+export interface IndependenceBlock {
+  /** Share (0-1) of inbound value from addresses this wallet also pays. Null when undecidable. */
+  reciprocalShare: number | null;
+  /** `1 - reciprocalShare`. Null when undecidable. */
+  independentShare: number | null;
+  verdict: 'independent' | 'mixed' | 'circular' | 'insufficient-data';
+  /** Distinct addresses observed paying this wallet. */
+  payerCount: number;
+  /** How many of those the wallet also pays. */
+  reciprocalPayerCount: number;
+  /** Share (0-1) of this wallet's outbound payments that carry an identified payee. */
+  coverage: number;
+  /** True when the figures come from a recent window rather than the wallet's whole history. */
+  windowed: boolean;
 }
